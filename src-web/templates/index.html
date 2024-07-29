@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Table Tennis Sports Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>Table Tennis Sports Analysis</h1>
+    <div id="main-container" class="flex-container">
+        <div id="left-column">
+            <form id="uploadForm" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                <div class="form-row">
+                    <label>Upload a Video File:</label>
+                    <input type="file" name="file">
+                    <input type="submit" value="Upload" >
+                </div>
+                <div class="form-row">
+                    <input type="radio" id="tech" name="analysis_type" value="tech" checked>
+                    <label for="tech">Athlete Technical Characteristics Statistics</label><br>
+                    <input type="radio" id="data" name="analysis_type" value="data">
+                    <label for="data">Ping Pong Balls Data Statistics</label><br>
+                    <input type="radio" id="serve" name="analysis_type" value="serve">
+                    <label for="serve">Athlete Serve and Receive Statistics</label>
+                </div>
+            </form>
+        </div>
+        <div id="right-column">
+            <div id="progress-section" style="display: none;">
+                <div id="progress-info" class="progress-info">
+                </div>
+                <div id="progress-bar" class="progress-bar">
+                    <div id="progress" class="progress"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <hr>
+    <div id="results-container" class="results-container flex-container"></div>
+    <hr>
+    <div id="theoretical-analysis" class="analysis-section">
+        <div id="analysis-content">
+
+        </div>
+    </div>
+    <script>
+        document.getElementById('uploadForm').onsubmit = async function(event) {
+            event.preventDefault();
+            document.getElementById('progress-section').style.display = 'block';
+            const formData = new FormData(this);
+            const response = await fetch(this.action, {
+                method: this.method,
+                body: formData
+            });
+            const result = await response.json();
+            console.log('Upload response:', result);
+            if (result.status === 'processing') {
+                checkProgressAndResults(result.unique_id, result.filename);
+            }
+        };
+
+        async function checkProgressAndResults(unique_id, filename) {
+            const response = await fetch(`/progress_and_results/${unique_id}`);
+            const result = await response.json();
+            console.log('Progress and Results response:', result);
+
+            const progress = result.progress;
+            document.getElementById('progress-info').innerText = `
+                Analysis Progress: ${progress.progress.toFixed(2)}%
+                Elapsed Time: ${progress.elapsed_time}
+                Estimated Time Remaining: ${progress.estimated_time_remaining}
+            `;
+            document.getElementById('progress').style.width = `${progress.progress.toFixed(2)}%`;
+
+            if (result.status === 'completed') {
+                displayResults(result.results, filename);
+            } else {
+                setTimeout(() => checkProgressAndResults(unique_id, filename), 5000);
+            }
+        }
+
+        function displayResults(results, filename) {
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="flex-column">
+                    <h2>Speed Statistics</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Direction</th>
+                                <th>Max (km/h)</th>
+                                <th>Average (km/h)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(results.speeds).map(([direction, stats]) => `
+                                <tr>
+                                    <td>${direction.charAt(0).toUpperCase() + direction.slice(1)}</td>
+                                    <td>${stats.max.toFixed(2)}</td>
+                                    <td>${stats.avg.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <h2>Calories Burned</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Total Exercise Duration</td>
+                                <td>${results.total_exercise_duration}</td>
+                            </tr>
+                            <tr>
+                                <td>Total Calories Burned</td>
+                                <td>${results.calories_burned.toFixed(1)} kcal</td>
+                            </tr>
+                            <tr>
+                                <td>Average Calories Burned per Hour</td>
+                                <td>${results.calories_burned_per_hour.toFixed(1)} kcal</td>
+                            </tr>
+                            <tr>
+                                <td>Intensity</td>
+                                <td>${results.intensity}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <video controls width="600" id="uploaded-video">
+                        <source src="" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="flex-column">
+                    <h2>Covered Area:  ${results.covered_area.toFixed(2)} m²</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cell</th>
+                                <th>Ratio (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(results.highlight_ratios).map(([cell_points, ratio], idx) => `
+                                <tr>
+                                    <td>${getCellName(idx)}</td>
+                                    <td>
+                                        <div class="bar-container">
+                                            <div class="heat-bar" style="width: ${ratio.toFixed(1)}%; background: ${getHeatBarColor(ratio.toFixed(1))};"></div>
+                                            ${ratio.toFixed(1)}%
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex-column">
+                    <h2>Stroke: ${results.swing_count}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Template</th>
+                                <th>Count</th>
+                                <th>Percentage (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.templates.Arm.map(template => {
+                                const count = results.match_counts.Arm[template.name] || 0;
+                                const percentage = (count / results.swing_count * 100).toFixed(1);
+                                return `
+                                <tr>
+                                    <td>${template.name}</td>
+                                    <td>${count}</td>
+                                    <td>
+                                        <div class="bar-container">
+                                            <div class="heat-bar" style="width: ${percentage}%; background: ${getHeatBarColor(percentage)};"></div>
+                                            ${percentage}%
+                                        </div>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    <h2>Footwork: ${results.step_count}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Template</th>
+                                <th>Count</th>
+                                <th>Percentage (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.templates.Footwork.map(template => {
+                                const count = results.match_counts.Footwork[template.name] || 0;
+                                const percentage = (count / results.step_count * 100).toFixed(1);
+                                return `
+                                <tr>
+                                    <td>${template.name}</td>
+                                    <td>${count}</td>
+                                    <td>
+                                        <div class="bar-container">
+                                            <div class="heat-bar" style="width: ${percentage}%; background: ${getHeatBarColor(percentage)};"></div>
+                                            ${percentage}%
+                                        </div>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('analysis-content').innerHTML = `
+                <h2>Theoretical Analysis</h2>
+                <h3>Advantages</h3>
+                <p>
+                    Based on the analysis, the main advantages of the athlete include:
+                    <ul>
+                        <li><strong>Speed Advantage</strong>:
+                            <ul>
+                                <li>Depth Direction: Max speed ${results.speeds['depth'].max.toFixed(2)} m/s, Average speed ${results.speeds['depth'].avg.toFixed(2)} m/s</li>
+                                <li>Sideways Movement: Max speed ${results.speeds['sideways'].max.toFixed(2)} m/s, Average speed ${results.speeds['sideways'].avg.toFixed(2)} m/s</li>
+                            </ul>
+                        </li>
+                        <li><strong>Calories Burned</strong>:
+                            <ul>
+                                <li>Total Exercise Duration: ${results.total_exercise_duration}</li>
+                                <li>Total Calories Burned: ${results.calories_burned.toFixed(1)} kcal</li>
+                                <li>Average Calories Burned per Hour: ${results.calories_burned_per_hour.toFixed(1)} kcal</li>
+                            </ul>
+                        </li>
+                        <li><strong>Covered Area</strong>: Total covered area ${results.covered_area.toFixed(2)} m²</li>
+                    </ul>
+                </p>
+                <h3>Disadvantages</h3>
+                <p>
+                    The main disadvantages of the athlete include:
+                    <ul>
+                        <li><strong>Speed Imbalance</strong>:
+                            <ul>
+                                <li>Forward Direction: Max speed only ${results.speeds['forward'].max.toFixed(2)} m/s, Average speed ${results.speeds['forward'].avg.toFixed(2)} m/s, lower than other directions</li>
+                            </ul>
+                        </li>
+                        <li><strong>Technical Consistency</strong>:
+                            <ul>
+                                <li>Some technical actions have a low success rate, such as the backhand technique with a success rate of ${(results.match_counts.Arm['Backhand'] / results.swing_count * 100).toFixed(1)}%</li>
+                            </ul>
+                        </li>
+                        <li><strong>Fitness Distribution</strong>: Decreased calorie burn efficiency in long matches, indicating poor fitness distribution</li>
+                    </ul>
+                </p>
+                <h3>Outstanding Technical Performance</h3>
+                <p>
+                    The athlete excels in the following technical aspects:
+                    <ul>
+                        <li><strong>Forehand Technique</strong>: High success rate of ${(results.match_counts.Arm['Forehand'] / results.swing_count * 100).toFixed(1)}%, showing strong offensive ability</li>
+                        <li><strong>Backhand Technique</strong>: Success rate of ${(results.match_counts.Arm['Backhand'] / results.swing_count * 100).toFixed(1)}%, stable performance in defense</li>
+                        <li><strong>Foot Movement</strong>: Total steps ${results.step_count}, showing flexible foot movement</li>
+                    </ul>
+                </p>
+                <h3>Strategies and Countermeasures</h3>
+                <p>
+                    Based on the statistical results, we can adopt the following strategies and countermeasures:
+                    <ul>
+                        <li><strong>Speed Training</strong>: Enhance speed training in low-speed directions, especially in the forward direction, to improve overall speed performance</li>
+                        <li><strong>Technical Optimization</strong>: Conduct specialized technical training to improve the success rate and consistency of the backhand technique</li>
+                        <li><strong>Fitness Distribution</strong>: Optimize fitness training plans to ensure better fitness distribution during long matches, maintaining high calorie burn efficiency</li>
+                    </ul>
+                </p>
+            `;
+            document.getElementById('uploaded-video').querySelector('source').src = 'upload/' + filename;
+            document.getElementById('uploaded-video').load();
+        }
+
+        function getCellName(idx) {
+            const specialTexts = {9: "R00", 6: "R01", 3: "R02", 8: "R10", 5: "R11", 2: "R12", 7: "R20", 4: "R21", 1: "R22",
+                                  12: "L00", 15: "L01", 18: "L02", 11: "L10", 14: "L11", 17: "L12", 10: "L20", 13: "L21",
+                                  16: "L22"};
+            return specialTexts[idx + 1] || (idx + 1).toString();
+        }
+
+        function getHeatBarColor(percentage) {
+            const green = Math.min(255, Math.floor(2.55 * (100 - percentage)));
+            const red = Math.min(255, Math.floor(2.55 * percentage));
+            return `rgb(${red},${green},0)`;
+        }
+    </script>
+</body>
+</html>

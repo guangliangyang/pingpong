@@ -1,0 +1,8 @@
+train: /Users/andy/workspace/AUT-PY/pythonProject01/dataset/images/train
+val: /Users/andy/workspace/AUT-PY/pythonProject01/dataset/images/val
+test: /Users/andy/workspace/AUT-PY/pythonProject01/dataset/images/test
+
+nc: 1  # 类别数量，这里只有乒乓球桌一种
+names: ['pingpong_table']
+
+#python train.py --img 640 --batch 16 --epochs 100 --data /Users/andy/workspace/AUT-PY/pythonProject01/dataset/dataset.yaml --cfg yolov5s.yaml --weights yolov5s.pt --name yolo9-pingpong-table

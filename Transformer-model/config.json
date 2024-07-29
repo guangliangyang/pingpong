@@ -1,0 +1,13 @@
+{
+    "default_action_type": "Stroke",
+    "action_types": {
+        "Footwork": {
+            "default_action": "In and Out Footwork",
+            "actions": ["In and Out Footwork", "Side to Side Footwork", "Cross over Footwork", "One Step Footwork"]
+        },
+        "Stroke": {
+            "default_action": "Forehand Drive",
+            "actions": ["Forehand Drive", "Forehand push", "Backhand Push", "Backhand Drive"]
+        }
+    }
+}
