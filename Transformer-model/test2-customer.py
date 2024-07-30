@@ -8,10 +8,10 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.model_selection import train_test_split
 import math
-
+from scipy.spatial.distance import cosine
 
 # 清空预测文件夹
 def clear_predict_folder(folder_path='predict'):
@@ -25,7 +25,6 @@ def clear_predict_folder(folder_path='predict'):
     else:
         os.makedirs(folder_path)
     print(f"{folder_path} 文件夹已清空")
-
 
 # MediaPipe 数据提取函数
 def extract_mediapipe_data(video_path):
@@ -61,7 +60,6 @@ def extract_mediapipe_data(video_path):
 
     return np.array(keypoints_data)
 
-
 # Positional Encoding
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -77,7 +75,6 @@ class PositionalEncoding(nn.Module):
         pe = self.pe[:x.size(0), :].to(x.device)
         return x + pe
 
-
 # Transformer 模型
 class ActionTransformer(nn.Module):
     def __init__(self, input_dim, d_model, nhead, num_layers, num_classes):
@@ -89,13 +86,15 @@ class ActionTransformer(nn.Module):
         self.classifier = nn.Linear(d_model, num_classes)
 
     def forward(self, src):
+        print(f"Input shape before embedding: {src.shape}")  # 添加这一行
         src = self.embedding(src)
+        print(f"Input shape after embedding: {src.shape}")  # 添加这一行
         src = self.pos_encoder(src)
+        print(f"Input shape after pos_encoder: {src.shape}")  # 添加这一行
         output = self.transformer_encoder(src)
         # 添加全局池化
         output = output.mean(dim=1)  # 或者 output = output[:, -1, :]
         return self.classifier(output)
-
 
 def detect_action_boundaries(frame_predictions, min_action_length=1):
     actions = []
@@ -114,11 +113,9 @@ def detect_action_boundaries(frame_predictions, min_action_length=1):
 
     return actions
 
-
 def read_label_data(csv_path):
     df = pd.read_csv(csv_path)
     return df
-
 
 def convert_labels_to_frames(label_data, total_frames, label_encoder):
     unknown_action = "unknown action"
@@ -145,12 +142,10 @@ def convert_labels_to_frames(label_data, total_frames, label_encoder):
 
     return frame_labels
 
-
 def prepare_data(video_data, frame_labels):
     X = video_data.reshape(len(video_data), -1)  # 保持数据的二维形状
     y = frame_labels
     return np.array(X), np.array(y)
-
 
 def train(model, train_loader, criterion, optimizer, device):
     model.train()
@@ -172,7 +167,6 @@ def train(model, train_loader, criterion, optimizer, device):
 
         total_loss += loss.item()
     return total_loss / len(train_loader)
-
 
 def validate(model, val_loader, criterion, device):
     model.eval()
@@ -198,19 +192,16 @@ def validate(model, val_loader, criterion, device):
     accuracy = correct / total
     return total_loss / len(val_loader), accuracy
 
-
 def save_mediapipe_data(data, file_path):
     df = pd.DataFrame(data.reshape(data.shape[0], -1))
     df.to_csv(file_path, index=False)
     print(f"MediaPipe 数据已保存到 {file_path}")
-
 
 def load_mediapipe_data(file_path):
     df = pd.read_csv(file_path)
     data = df.values.reshape(-1, 33, 3)
     print(f"MediaPipe 数据已从 {file_path} 加载")
     return data
-
 
 def save_predictions(predictions, video_name, fps, label_encoder):
     output_path = os.path.join('predict', f'{video_name}_predict.csv')
@@ -223,6 +214,7 @@ def save_predictions(predictions, video_name, fps, label_encoder):
 
     data = []
     for start, end, action in actions:
+        action = int(action)  # 确保 action 是整数类型
         action_name = label_encoder.inverse_transform([action])[0]
         data.append({
             'Start Frame': start,
@@ -239,6 +231,54 @@ def print_gpu_usage():
     if torch.cuda.is_available():
         print(f"已分配的 GPU 内存: {torch.cuda.memory_allocated() / 1024 ** 2:.2f} MB")
         print(f"GPU 内存缓存: {torch.cuda.memory_reserved() / 1024 ** 2:.2f} MB")
+
+def find_pattern_with_dynamic_window(model, data, min_window_size, max_window_size, step_size):
+    model.eval()
+    total_frames = data.shape[0]
+    predictions = np.zeros(total_frames, dtype=int)
+
+    for window_size in range(min_window_size, max_window_size + 1, step_size):
+        for start in range(0, total_frames - window_size + 1, step_size):
+            end = start + window_size
+            window = data[start:end]
+            window = torch.tensor(window, dtype=torch.float32).to(device)
+            window = window.reshape(window.shape[0], -1)  # 调整形状为 (sequence_length, input_dim)
+            window = window.unsqueeze(0)  # 增加 batch 维度，形状为 (1, sequence_length, input_dim)
+            with torch.no_grad():
+                output = model(window)
+                frame_predictions = output.argmax(dim=1).cpu().numpy().flatten().astype(int)
+                predictions[start:end] = frame_predictions
+
+    return predictions
+
+
+
+def calculate_similarity(target, candidate):
+    return 1 - cosine(target.flatten(), candidate.flatten())
+
+def find_pattern_with_similarity(model, data, window_size, step_size, similarity_threshold=0.25):
+    model.eval()
+    total_frames = data.shape[0]
+    matches = []
+
+    for start in range(0, total_frames - window_size + 1, step_size):
+        end = start + window_size
+        window = data[start:end]
+        window = torch.tensor(window, dtype=torch.float32).to(device)
+        window = window.reshape(window.shape[0], -1)  # 调整形状为 (sequence_length, input_dim)
+        window = window.unsqueeze(0)  # 增加 batch 维度，形状为 (1, sequence_length, input_dim)
+        with torch.no_grad():
+            output = model(window)
+            frame_predictions = output.argmax(dim=1).cpu().numpy().flatten().astype(int)
+
+        target = data[:window_size]
+        similarity = calculate_similarity(target, window.cpu().numpy())
+
+        if similarity > similarity_threshold:
+            matches.append((start, end, similarity))
+
+    return matches
+
 
 
 if __name__ == "__main__":
@@ -378,6 +418,10 @@ if __name__ == "__main__":
 
     # 对每个处理过的视频进行预测和评估
     overall_accuracy = []
+    min_window_size = 2
+    max_window_size = 26
+    step_size = 2
+
     for video_name, video_data, label_data in zip(processed_videos, all_video_data, all_frame_labels):
         print(f"\n预测视频: {video_name}")
 
@@ -386,17 +430,12 @@ if __name__ == "__main__":
             continue
 
         # 检查视频帧数是否足够
-        if video_data.shape[0] < 30:  # 假设至少需要30帧
+        if video_data.shape[0] < min_window_size:
             print(f"警告：视频 {video_name} 的帧数不足（{video_data.shape[0]}帧），跳过此视频")
             continue
 
         # 进行预测
-        video_data_flat = video_data.reshape(len(video_data), -1)
-        video_tensor = torch.FloatTensor(video_data_flat).unsqueeze(1).to(device)
-
-        with torch.no_grad():
-            output = model(video_tensor)
-            frame_predictions = output.argmax(dim=2).cpu().numpy().flatten()
+        frame_predictions = find_pattern_with_dynamic_window(model, video_data, min_window_size, max_window_size, step_size)
 
         # 保存预测结果
         video_path = os.path.join(video_dir, f"{video_name}.mp4")
