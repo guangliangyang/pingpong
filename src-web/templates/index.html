@@ -16,12 +16,12 @@
                     <input type="submit" value="Upload" >
                 </div>
                 <div class="form-row">
-                    <input type="radio" id="tech" name="analysis_type" value="tech" checked>
-                    <label for="tech">Athlete Technical Characteristics Statistics</label><br>
-                    <input type="radio" id="data" name="analysis_type" value="data">
-                    <label for="data">Ping Pong Balls Data Statistics</label><br>
-                    <input type="radio" id="serve" name="analysis_type" value="serve">
-                    <label for="serve">Athlete Serve and Receive Statistics</label>
+                    <label for="analysis_type">Select Analysis Type:</label>
+                    <select id="analysis_type" name="analysis_type">
+                        <option value="tech" selected>Athlete Technical Characteristics Statistics</option>
+                        <option value="data">Ping Pong Balls Data Statistics</option>
+                        <option value="serve">Athlete Serve and Receive Statistics</option>
+                    </select>
                 </div>
             </form>
         </div>
@@ -40,7 +40,6 @@
     <hr>
     <div id="theoretical-analysis" class="analysis-section">
         <div id="analysis-content">
-
         </div>
     </div>
     <script>
