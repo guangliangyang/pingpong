@@ -7,7 +7,7 @@ model_path = "/Users/andy/workspace/AUT-PY/Table_tennis_demo_zh/best_bak.pt"
 model = YOLO(model_path)
 
 # 读取视频
-video_path = "/Users/andy/workspace/GX010028-spin.MP4"
+video_path = "/Users/andy/Movies/GoPro/GX010028.MP4"
 cap = cv2.VideoCapture(video_path)
 
 # 初始化一个空白图像来合成乒乓球图像
@@ -17,7 +17,7 @@ desired_size = (50, 50)  # 设置所有图像调整到的大小
 
 while cap.isOpened():
     ret, frame = cap.read()
-    if not ret:
+    if not ret or frame_count>1000:
         break
 
     # 使用YOLO模型进行检测
