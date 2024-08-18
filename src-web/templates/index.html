@@ -4,8 +4,12 @@
     <meta charset="utf-8">
     <title>Table Tennis Sports Analysis</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+
+
     <h1>Table Tennis Sports Analysis</h1>
     <div id="main-container" class="flex-container">
         <div id="left-column">
@@ -13,7 +17,7 @@
                 <div class="form-row">
                     <label>Upload a Video File:</label>
                     <input type="file" name="file">
-                    <input type="submit" value="Upload" >
+                    <input type="submit" value="Upload">
                 </div>
                 <div class="form-row">
                     <label for="analysis_type">Select Analysis Type:</label>
@@ -39,9 +43,9 @@
     <div id="results-container" class="results-container flex-container"></div>
     <hr>
     <div id="theoretical-analysis" class="analysis-section">
-        <div id="analysis-content">
-        </div>
+        <div id="analysis-content"></div>
     </div>
+
     <script>
         document.getElementById('uploadForm').onsubmit = async function(event) {
             event.preventDefault();
@@ -79,7 +83,9 @@
         }
 
         function displayResults(results, filename) {
+            const formattedAnalysis = marked.parse(results.gpt_analysis);
             const resultsContainer = document.getElementById('results-container');
+
             resultsContainer.innerHTML = `
                 <div class="flex-column">
                     <h2>Speed Statistics</h2>
@@ -135,7 +141,7 @@
                     </video>
                 </div>
                 <div class="flex-column">
-                    <h2>Covered Area:  ${results.covered_area.toFixed(2)} m²</h2>
+                    <h2>Covered Area: ${results.covered_area.toFixed(2)} m²</h2>
                     <table>
                         <thead>
                             <tr>
@@ -217,65 +223,105 @@
             `;
 
             document.getElementById('analysis-content').innerHTML = `
-                <h2>Theoretical Analysis</h2>
-                <h3>Advantages</h3>
-                <p>
-                    Based on the analysis, the main advantages of the athlete include:
-                    <ul>
-                        <li><strong>Speed Advantage</strong>:
-                            <ul>
-                                <li>Depth Direction: Max speed ${results.speeds['depth'].max.toFixed(2)} m/s, Average speed ${results.speeds['depth'].avg.toFixed(2)} m/s</li>
-                                <li>Sideways Movement: Max speed ${results.speeds['sideways'].max.toFixed(2)} m/s, Average speed ${results.speeds['sideways'].avg.toFixed(2)} m/s</li>
-                            </ul>
-                        </li>
-                        <li><strong>Calories Burned</strong>:
-                            <ul>
-                                <li>Total Exercise Duration: ${results.total_exercise_duration}</li>
-                                <li>Total Calories Burned: ${results.calories_burned.toFixed(1)} kcal</li>
-                                <li>Average Calories Burned per Hour: ${results.calories_burned_per_hour.toFixed(1)} kcal</li>
-                            </ul>
-                        </li>
-                        <li><strong>Covered Area</strong>: Total covered area ${results.covered_area.toFixed(2)} m²</li>
-                    </ul>
-                </p>
-                <h3>Disadvantages</h3>
-                <p>
-                    The main disadvantages of the athlete include:
-                    <ul>
-                        <li><strong>Speed Imbalance</strong>:
-                            <ul>
-                                <li>Forward Direction: Max speed only ${results.speeds['forward'].max.toFixed(2)} m/s, Average speed ${results.speeds['forward'].avg.toFixed(2)} m/s, lower than other directions</li>
-                            </ul>
-                        </li>
-                        <li><strong>Technical Consistency</strong>:
-                            <ul>
-                                <li>Some technical actions have a low success rate, such as the backhand technique with a success rate of ${(results.match_counts.Arm['Backhand'] / results.swing_count * 100).toFixed(1)}%</li>
-                            </ul>
-                        </li>
-                        <li><strong>Fitness Distribution</strong>: Decreased calorie burn efficiency in long matches, indicating poor fitness distribution</li>
-                    </ul>
-                </p>
-                <h3>Outstanding Technical Performance</h3>
-                <p>
-                    The athlete excels in the following technical aspects:
-                    <ul>
-                        <li><strong>Forehand Technique</strong>: High success rate of ${(results.match_counts.Arm['Forehand'] / results.swing_count * 100).toFixed(1)}%, showing strong offensive ability</li>
-                        <li><strong>Backhand Technique</strong>: Success rate of ${(results.match_counts.Arm['Backhand'] / results.swing_count * 100).toFixed(1)}%, stable performance in defense</li>
-                        <li><strong>Foot Movement</strong>: Total steps ${results.step_count}, showing flexible foot movement</li>
-                    </ul>
-                </p>
-                <h3>Strategies and Countermeasures</h3>
-                <p>
-                    Based on the statistical results, we can adopt the following strategies and countermeasures:
-                    <ul>
-                        <li><strong>Speed Training</strong>: Enhance speed training in low-speed directions, especially in the forward direction, to improve overall speed performance</li>
-                        <li><strong>Technical Optimization</strong>: Conduct specialized technical training to improve the success rate and consistency of the backhand technique</li>
-                        <li><strong>Fitness Distribution</strong>: Optimize fitness training plans to ensure better fitness distribution during long matches, maintaining high calorie burn efficiency</li>
-                    </ul>
-                </p>
+                <div class="analysis-header">
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="analysis-logo">
+                    <h2>Table Tennis GPT</h2>
+                </div>
+                ${formattedAnalysis}
+                <div id="icons-container" class="icons-container">
+                    <i class="fas fa-volume-up" id="speaker-icon"></i>
+                    <i class="fas fa-copy" id="copy-icon"></i>
+                    <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                    <i class="fas fa-thumbs-up" id="thumbs-up-icon"></i>
+                    <i class="fas fa-thumbs-down" id="thumbs-down-icon"></i>
+                </div>
             `;
+
             document.getElementById('uploaded-video').querySelector('source').src = 'upload/' + filename;
             document.getElementById('uploaded-video').load();
+
+            // Icon functionality
+            let utterance;
+            const speakerIcon = document.getElementById('speaker-icon');
+
+            speakerIcon.addEventListener('click', () => {
+                if (speechSynthesis.speaking) {
+                    // 如果正在播放语音，停止播放
+                    speechSynthesis.cancel();
+                    speakerIcon.classList.remove('fa-stop');
+                    speakerIcon.classList.add('fa-volume-up');  // 恢复为喇叭图标
+                } else {
+                    // 启动语音播放
+                    const gptAnalysisText = document.getElementById('analysis-content').innerText;
+                    utterance = new SpeechSynthesisUtterance(gptAnalysisText);
+                    speechSynthesis.speak(utterance);
+
+                    // 切换为停止图标
+                    speakerIcon.classList.remove('fa-volume-up');
+                    speakerIcon.classList.add('fa-stop');
+                    utterance.onend = () => {
+                        // 语音播放结束后恢复为喇叭图标
+                        speakerIcon.classList.remove('fa-stop');
+                        speakerIcon.classList.add('fa-volume-up');
+                    };
+                }
+            });
+
+            document.getElementById('copy-icon').addEventListener('click', async () => {
+                const gptAnalysisText = document.getElementById('analysis-content').innerText;
+                try {
+                    await navigator.clipboard.writeText(gptAnalysisText);
+                    alert('Analysis copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+            });
+
+            document.getElementById('refresh-icon').addEventListener('click', async () => {
+                const previousResults = JSON.parse(sessionStorage.getItem('previousResults'));
+                if (previousResults) {
+                    const response = await fetch('/refresh_analysis', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(previousResults)
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        const formattedAnalysis = marked.parse(result.gpt_analysis);
+                        console.log(formattedAnalysis)
+                        document.getElementById('analysis-content').innerHTML = `
+                            <div class="analysis-header">
+                                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="analysis-logo">
+                                <h2>Table Tennis GPT</h2>
+                            </div>
+                            ${formattedAnalysis}
+                            <div id="icons-container" class="icons-container">
+                                <i class="fas fa-volume-up" id="speaker-icon"></i>
+                                <i class="fas fa-copy" id="copy-icon"></i>
+                                <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                                <i class="fas fa-thumbs-up" id="thumbs-up-icon"></i>
+                                <i class="fas fa-thumbs-down" id="thumbs-down-icon"></i>
+                            </div>
+                        `;
+                    } else {
+                        alert('Failed to refresh analysis.');
+                    }
+                } else {
+                    alert('No previous analysis data available.');
+                }
+            });
+
+            document.getElementById('thumbs-up-icon').addEventListener('click', () => {
+                alert('Thanks for your feedback!');
+            });
+
+            document.getElementById('thumbs-down-icon').addEventListener('click', () => {
+                alert('Sorry to hear that! We appreciate your feedback.');
+            });
+
+            sessionStorage.setItem('previousResults', JSON.stringify(results));
         }
 
         function getCellName(idx) {

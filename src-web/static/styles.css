@@ -1,3 +1,4 @@
+/* 全局样式 */
 body {
     font-family: Arial, sans-serif;
     margin: 40px;
@@ -136,13 +137,53 @@ hr {
     margin: 0 10px;
     min-width: 300px;
 }
+
 video {
     margin-top: 20px;
     max-width: 100%;
     height: auto;
 }
 
+/* Markdown 内容样式 */
+.markdown-content {
+    text-align: left;
+    margin-top: 20px;
+}
 
+/* 分析部分的头部样式 */
+.analysis-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.analysis-logo {
+    width: 40px;
+    height: 40px;
+    margin-right: 15px;
+}
+
+/* 图标容器样式 */
+.icons-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 20px 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #f8f8f8;
+}
+
+/* 图标样式 */
+.icons-container i {
+    margin: 0 10px; /* 每个图标的左右间距 */
+    font-size: 24px; /* 图标大小 */
+    cursor: pointer;
+}
+
+/* 其他小部件样式 */
 .analysis-section {
     margin: 40px 0;
     text-align: left;
