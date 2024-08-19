@@ -3,8 +3,10 @@ import json
 import os
 import numpy as np
 from ultralytics import YOLO
+import mediapipe as mp
 
 
+# 加载3D坐标的JSON文件
 def load_json(file_path):
     """加载 JSON 文件"""
     if os.path.exists(file_path):
@@ -120,8 +122,8 @@ def detect_pingpong_ball(model, image):
     return image
 
 
-def process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, mid_point):
-    """处理视频并进行乒乓球检测"""
+def process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, mid_point, pose, proj_matrix_left, proj_matrix_right):
+    """处理视频并进行乒乓球检测和人体骨架绘制"""
     cap = cv2.VideoCapture(video_path)
 
     while cap.isOpened():
@@ -133,9 +135,20 @@ def process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, m
         left_image = cropped_frame[:, :mid_point]
         right_image = cropped_frame[:, mid_point:]
 
+        # YOLO 检测乒乓球
         left_image = detect_pingpong_ball(model, left_image)
         right_image = detect_pingpong_ball(model, right_image)
 
+        # 使用 Mediapipe 绘制人体骨架
+        left_image, left_keypoints = draw_skeleton_on_image(left_image, pose)
+        right_image, right_keypoints = draw_skeleton_on_image(right_image, pose)
+
+        # 计算关节点6和32之间的3D距离
+        if left_keypoints and right_keypoints:
+            distance = calculate_joint_distance(proj_matrix_left, proj_matrix_right, left_keypoints, right_keypoints)
+            print(f"3D distance between joint 6 and joint 32: {distance:.2f} units")
+
+        # 显示检测结果
         cv2.imshow("Left Image", left_image)
         cv2.imshow("Right Image", right_image)
 
@@ -144,6 +157,59 @@ def process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, m
 
     cap.release()
     cv2.destroyAllWindows()
+
+
+def draw_skeleton_on_image(image, pose):
+    """使用 Mediapipe 在图像上绘制人体骨架并返回关键点"""
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = pose.process(image_rgb)
+    keypoints = []
+
+    if results.pose_landmarks:
+        mp.solutions.drawing_utils.draw_landmarks(
+            image, results.pose_landmarks, mp.solutions.pose.POSE_CONNECTIONS,
+            mp.solutions.drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1),
+            mp.solutions.drawing_utils.DrawingSpec(color=(0, 0, 255), thickness=1, circle_radius=1)
+        )
+        keypoints = [(lm.x, lm.y) for lm in results.pose_landmarks.landmark]
+
+    return image, keypoints
+
+
+def calculate_joint_distance(proj_matrix_left, proj_matrix_right, keypoints_left, keypoints_right):
+    """计算关节点6和32之间的3D距离"""
+    point_2d_left_6 = keypoints_left[6]
+    point_2d_right_6 = keypoints_right[6]
+    point_2d_left_32 = keypoints_left[32]
+    point_2d_right_32 = keypoints_right[32]
+
+    # 通过三角测量计算3D位置
+    point_3d_6 = calculate_3d_point(proj_matrix_left, proj_matrix_right, point_2d_left_6, point_2d_right_6)
+    point_3d_32 = calculate_3d_point(proj_matrix_left, proj_matrix_right, point_2d_left_32, point_2d_right_32)
+
+    print(f"Joint 6 (3D): {point_3d_6}")
+    print(f"Joint 32 (3D): {point_3d_32}")
+
+    # 计算3D距离
+    distance = np.linalg.norm(point_3d_6 - point_3d_32)
+    return distance
+
+
+def calculate_3d_point(proj_matrix_left, proj_matrix_right, point_2d_left, point_2d_right):
+    """执行三角测量，计算3D点"""
+    points_2d_left = np.array([point_2d_left], dtype=np.float32).T
+    points_2d_right = np.array([point_2d_right], dtype=np.float32).T
+    point_4d_homogeneous = cv2.triangulatePoints(proj_matrix_left, proj_matrix_right, points_2d_left, points_2d_right)
+    point_3d = point_4d_homogeneous[:3] / point_4d_homogeneous[3]  # 转换为非齐次坐标
+    return point_3d.flatten()
+
+
+def get_projection_matrix(camera_matrix, rvec, tvec):
+    """将旋转向量和平移向量转换为投影矩阵"""
+    R, _ = cv2.Rodrigues(rvec)  # 将旋转向量转换为旋转矩阵
+    Rt = np.hstack((R, tvec.reshape(-1, 1)))  # 构建 [R|t] 矩阵
+    P = np.dot(camera_matrix, Rt)  # 计算投影矩阵 P = K * [R|t]
+    return P
 
 
 def load_keypoints(json_path):
@@ -188,34 +254,39 @@ def main():
     x_min = np.where(horizontal_projection > 0)[0][0]
     x_max = np.where(horizontal_projection > 0)[0][-1]
     cropped_frame = frame[y_min:y_max+1, x_min:x_max+1]
-
     height, width, _ = cropped_frame.shape
     mid_point = width // 2
-
     left_image = cropped_frame[:, :mid_point]
     right_image = cropped_frame[:, mid_point:]
-    image_size = (left_image.shape[1], left_image.shape[0])  # (width, height)
 
-    # 标注左图像
+    # 标注左图像点
     mark_image_points(left_image, left_image_points, "Left Image", key_points_3d)
 
-    # 标注右图像
+    # 标注右图像点
     mark_image_points(right_image, right_image_points, "Right Image", key_points_3d)
 
-    # 摄像头标定
+    # 加载标注数据
     left_image_points, left_world_points = load_keypoints('left_image_points.json')
     right_image_points, right_world_points = load_keypoints('right_image_points.json')
 
+    # 摄像头标定
+    image_size = (left_image.shape[1], left_image.shape[0])
     left_camera_matrix, left_dist_coeffs, left_rvecs, left_tvecs = calibrate_camera(left_image_points, left_world_points, image_size)
     right_camera_matrix, right_dist_coeffs, right_rvecs, right_tvecs = calibrate_camera(right_image_points, right_world_points, image_size)
 
     save_calibration('left_camera_calibration.json', left_camera_matrix, left_dist_coeffs, left_rvecs, left_tvecs)
     save_calibration('right_camera_calibration.json', right_camera_matrix, right_dist_coeffs, right_rvecs, right_tvecs)
 
-    # 乒乓球检测
+    # 构建投影矩阵
+    proj_matrix_left = get_projection_matrix(left_camera_matrix, left_rvecs[0], left_tvecs[0])
+    proj_matrix_right = get_projection_matrix(right_camera_matrix, right_rvecs[0], right_tvecs[0])
+
+    # 乒乓球检测和人体骨架绘制
     model_path = "/Users/andy/workspace/AUT-PY/Table_tennis_demo_zh/best_bak.pt"
     model = YOLO(model_path)
-    process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, mid_point)
+
+    with mp.solutions.pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+        process_video_for_detection(video_path, model, y_min, y_max, x_min, x_max, mid_point, pose, proj_matrix_left, proj_matrix_right)
 
 
 if __name__ == "__main__":
