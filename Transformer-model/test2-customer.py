@@ -163,6 +163,8 @@ def train(model, train_loader, criterion, optimizer, device):
     total_loss = 0
     for data, target in train_loader:
         inputs, labels = data.to(device), target.to(device)
+        logging.debug(f"train input:{inputs}")
+        logging.debug(f"train  labels:{labels}")
         logging.debug(f"Input shape: {inputs.shape}")  # (batch_size, seq_len, input_dim)
         src_key_padding_mask = create_padding_mask(inputs).to(device)  # (batch_size, seq_len)
         logging.debug(f"Padding mask shape: {src_key_padding_mask.shape}")

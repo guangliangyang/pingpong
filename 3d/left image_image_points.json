@@ -1,0 +1,98 @@
+[
+    {
+        "point_name": "0",
+        "image_coordinates": [
+            356,
+            224
+        ],
+        "world3d_coordinates": [
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    {
+        "point_name": "1",
+        "image_coordinates": [
+            357,
+            239
+        ],
+        "world3d_coordinates": [
+            76.25,
+            0.0,
+            0.0
+        ]
+    },
+    {
+        "point_name": "2",
+        "image_coordinates": [
+            360,
+            261
+        ],
+        "world3d_coordinates": [
+            152.5,
+            0.0,
+            0.0
+        ]
+    },
+    {
+        "point_name": "3",
+        "image_coordinates": [
+            545,
+            267
+        ],
+        "world3d_coordinates": [
+            152.5,
+            137.0,
+            0.0
+        ]
+    },
+    {
+        "point_name": "4",
+        "image_coordinates": [
+            547,
+            251
+        ],
+        "world3d_coordinates": [
+            152.5,
+            137.0,
+            12.5
+        ]
+    },
+    {
+        "point_name": "5",
+        "image_coordinates": [
+            477,
+            225
+        ],
+        "world3d_coordinates": [
+            0.0,
+            137.0,
+            0.0
+        ]
+    },
+    {
+        "point_name": "6",
+        "image_coordinates": [
+            476,
+            215
+        ],
+        "world3d_coordinates": [
+            0.0,
+            137.0,
+            12.5
+        ]
+    },
+    {
+        "point_name": "7",
+        "image_coordinates": [
+            503,
+            242
+        ],
+        "world3d_coordinates": [
+            76.25,
+            137.0,
+            0.0
+        ]
+    }
+]
